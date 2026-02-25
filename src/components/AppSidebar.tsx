@@ -5,8 +5,11 @@ import {
   Receipt,
   BarChart3,
   Store,
+  LogOut,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -29,6 +32,8 @@ const navItems = [
 ];
 
 export function AppSidebar() {
+  const { signOut, user } = useAuth();
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
@@ -72,10 +77,19 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <p className="text-[10px] text-sidebar-foreground/40 text-center">
-          © 2026 Pravinkumar General Store
-        </p>
+      <SidebarFooter className="p-4 border-t border-sidebar-border space-y-2">
+        <div className="text-xs text-sidebar-foreground/60 text-center truncate">
+          {user?.email}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full text-sidebar-foreground/60 hover:text-sidebar-accent-foreground"
+          onClick={signOut}
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Sign Out
+        </Button>
       </SidebarFooter>
     </Sidebar>
   );
