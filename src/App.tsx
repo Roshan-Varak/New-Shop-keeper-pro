@@ -13,6 +13,7 @@ import SalesHistory from "./pages/SalesHistory";
 import Reports from "./pages/Reports";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import UserManagement from "./pages/UserManagement";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
                       <Route path="/billing" element={<Billing />} />
                       <Route path="/sales" element={<SalesHistory />} />
                       <Route path="/reports" element={<Reports />} />
+                      <Route path="/users" element={<UserManagement />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </DashboardLayout>
