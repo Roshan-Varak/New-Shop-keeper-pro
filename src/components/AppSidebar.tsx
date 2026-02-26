@@ -6,6 +6,7 @@ import {
   BarChart3,
   Store,
   LogOut,
+  Users,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -29,6 +30,7 @@ const navItems = [
   { title: "New Sale", url: "/billing", icon: ShoppingCart },
   { title: "Sales History", url: "/sales", icon: Receipt },
   { title: "Reports", url: "/reports", icon: BarChart3 },
+  { title: "Users", url: "/users", icon: Users },
 ];
 
 export function AppSidebar() {
