@@ -1,23 +1,66 @@
-import { useState, useMemo } from "react";
-import { Search, Plus, Minus, Trash2, Receipt, Printer } from "lucide-react";
-import { products as allProducts, SaleItem } from "@/data/mockData";
+import { useState, useMemo, useEffect } from "react";
+import { Search, Plus, Minus, Trash2, Receipt, Printer, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+
+interface CartItem {
+  productId: string;
+  name: string;
+  quantity: number;
+  price: number;
+  total: number;
+  stock: number;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  unit: string;
+  category_id: string | null;
+}
+
+interface Customer {
+  id: string;
+  name: string;
+  mobile: string;
+}
 
 export default function Billing() {
   const [search, setSearch] = useState("");
-  const [cart, setCart] = useState<SaleItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [discount, setDiscount] = useState(0);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const filteredProducts = allProducts.filter((p) =>
+  useEffect(() => {
+    const fetchProducts = async () => {
+      const { data } = await supabase.from("products").select("id, name, price, stock, unit, category_id");
+      if (data) setProducts(data);
+    };
+    const fetchCustomers = async () => {
+      const { data } = await supabase.from("customers").select("id, name, mobile");
+      if (data) setCustomers(data);
+    };
+    fetchProducts();
+    fetchCustomers();
+  }, []);
+
+  const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase())
   );
 
   const addToCart = (productId: string) => {
-    const product = allProducts.find((p) => p.id === productId);
+    const product = products.find((p) => p.id === productId);
     if (!product) return;
     const existing = cart.find((c) => c.productId === productId);
     if (existing) {
@@ -32,7 +75,7 @@ export default function Billing() {
       ));
     } else {
       setCart([...cart, {
-        productId, name: product.name, quantity: 1, price: product.price, total: product.price,
+        productId, name: product.name, quantity: 1, price: product.price, total: product.price, stock: product.stock,
       }]);
     }
   };
@@ -42,8 +85,7 @@ export default function Billing() {
       if (c.productId !== productId) return c;
       const newQty = c.quantity + delta;
       if (newQty <= 0) return c;
-      const product = allProducts.find((p) => p.id === productId);
-      if (product && newQty > product.stock) {
+      if (newQty > c.stock) {
         toast.error("Insufficient stock!");
         return c;
       }
@@ -58,16 +100,73 @@ export default function Billing() {
   const subtotal = useMemo(() => cart.reduce((a, c) => a + c.total, 0), [cart]);
   const total = subtotal - discount;
 
-  const handleGenerateBill = () => {
+  const handleGenerateBill = async () => {
     if (cart.length === 0) {
       toast.error("Add items to the cart first!");
       return;
     }
+    if (paymentMethod === "Credit" && !selectedCustomerId) {
+      toast.error("Select a customer for credit sale!");
+      return;
+    }
+
+    setSubmitting(true);
     const billNumber = `PGS-${Date.now().toString().slice(-6)}`;
+
+    // Insert sale
+    const { data: sale, error: saleErr } = await supabase.from("sales").insert({
+      bill_number: billNumber,
+      subtotal,
+      discount,
+      total,
+      payment_method: paymentMethod,
+      customer_id: paymentMethod === "Credit" ? selectedCustomerId : null,
+    }).select("id").single();
+
+    if (saleErr || !sale) {
+      toast.error(saleErr?.message || "Failed to create sale");
+      setSubmitting(false);
+      return;
+    }
+
+    // Insert sale items
+    const items = cart.map((c) => ({
+      sale_id: sale.id,
+      product_id: c.productId,
+      name: c.name,
+      quantity: c.quantity,
+      price: c.price,
+      total: c.total,
+    }));
+    const { error: itemErr } = await supabase.from("sale_items").insert(items);
+    if (itemErr) {
+      toast.error(itemErr.message);
+      setSubmitting(false);
+      return;
+    }
+
+    // If credit, add credit transaction
+    if (paymentMethod === "Credit" && selectedCustomerId) {
+      await supabase.from("credit_transactions").insert({
+        customer_id: selectedCustomerId,
+        sale_id: sale.id,
+        amount: total,
+        type: "credit",
+        note: `Bill ${billNumber}`,
+      });
+    }
+
     toast.success(`Bill ${billNumber} generated! Total: ₹${total}`);
     setCart([]);
     setDiscount(0);
     setSearch("");
+    setPaymentMethod("Cash");
+    setSelectedCustomerId("");
+    setSubmitting(false);
+
+    // Refresh products to get updated stock
+    const { data: refreshed } = await supabase.from("products").select("id, name, price, stock, unit, category_id");
+    if (refreshed) setProducts(refreshed);
   };
 
   return (
@@ -104,7 +203,7 @@ export default function Billing() {
                     {p.stock} left
                   </Badge>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-1">{p.category} • {p.unit}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">{p.unit}</p>
               </button>
             ))}
           </div>
@@ -151,7 +250,7 @@ export default function Billing() {
 
             <Separator className="my-4" />
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-medium">₹{subtotal}</span>
@@ -166,6 +265,48 @@ export default function Billing() {
                   min={0}
                 />
               </div>
+
+              {/* Payment Method */}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Payment</span>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger className="w-36 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Cash">Cash</SelectItem>
+                    <SelectItem value="UPI">UPI</SelectItem>
+                    <SelectItem value="Card">Card</SelectItem>
+                    <SelectItem value="Credit">Credit / Udhari</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Customer selection for Credit */}
+              {paymentMethod === "Credit" && (
+                <div className="space-y-2 p-3 rounded-lg bg-muted/50 border border-dashed">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <User className="w-4 h-4 text-primary" />
+                    Select Customer
+                  </div>
+                  <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="Choose customer..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} — {c.mobile}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {customers.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No customers yet. Add from Credit Management.</p>
+                  )}
+                </div>
+              )}
+
               <Separator />
               <div className="flex justify-between text-lg font-bold font-heading">
                 <span>Total</span>
@@ -173,8 +314,8 @@ export default function Billing() {
               </div>
             </div>
 
-            <Button className="w-full mt-4" size="lg" onClick={handleGenerateBill}>
-              <Printer className="w-4 h-4 mr-2" /> Generate Bill
+            <Button className="w-full mt-4" size="lg" onClick={handleGenerateBill} disabled={submitting}>
+              <Printer className="w-4 h-4 mr-2" /> {submitting ? "Processing..." : "Generate Bill"}
             </Button>
           </div>
         </div>

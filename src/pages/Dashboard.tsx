@@ -1,6 +1,7 @@
-import { IndianRupee, ShoppingBag, Package, AlertTriangle, TrendingUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { IndianRupee, ShoppingBag, Package, AlertTriangle, TrendingUp, CreditCard } from "lucide-react";
 import { StatCard } from "@/components/StatCard";
-import { products, recentSales, categories } from "@/data/mockData";
+import { supabase } from "@/integrations/supabase/client";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -18,18 +19,48 @@ const salesByDay = [
   { day: "Sun", sales: 2100 },
 ];
 
-const categoryData = products.reduce((acc, p) => {
-  const found = acc.find((c) => c.name === p.category);
-  if (found) found.value += p.stock;
-  else acc.push({ name: p.category, value: p.stock });
-  return acc;
-}, [] as { name: string; value: number }[]);
-
-const lowStockProducts = products.filter((p) => p.stock <= 10);
-const todayTotal = recentSales.filter(s => s.date.startsWith("2026-02-24")).reduce((a, s) => a + s.total, 0);
-const monthTotal = recentSales.reduce((a, s) => a + s.total, 0);
-
 export default function Dashboard() {
+  const [totalOutstanding, setTotalOutstanding] = useState(0);
+  const [productCount, setProductCount] = useState(0);
+  const [lowStockCount, setLowStockCount] = useState(0);
+  const [categoryData, setCategoryData] = useState<{ name: string; value: number }[]>([]);
+  const [recentSales, setRecentSales] = useState<any[]>([]);
+  const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Fetch outstanding credit
+    supabase.from("credit_transactions").select("*").then(({ data }) => {
+      if (data) {
+        const credit = data.filter(t => t.type === "credit").reduce((a, t) => a + Number(t.amount), 0);
+        const paid = data.filter(t => t.type === "payment").reduce((a, t) => a + Number(t.amount), 0);
+        setTotalOutstanding(credit - paid);
+      }
+    });
+
+    // Fetch products for stats
+    supabase.from("products").select("id, name, stock, category_id").then(({ data }) => {
+      if (data) {
+        setProductCount(data.length);
+        setLowStockCount(data.filter(p => p.stock <= 10).length);
+        setLowStockProducts(data.filter(p => p.stock <= 10));
+        // Category grouping by category_id (simplified)
+        const grouped = data.reduce((acc, p) => {
+          const key = p.category_id || "Uncategorized";
+          const found = acc.find(c => c.name === key);
+          if (found) found.value += p.stock;
+          else acc.push({ name: key, value: p.stock });
+          return acc;
+        }, [] as { name: string; value: number }[]);
+        setCategoryData(grouped);
+      }
+    });
+
+    // Fetch recent sales
+    supabase.from("sales").select("*, sale_items(*)").order("created_at", { ascending: false }).limit(4).then(({ data }) => {
+      if (data) setRecentSales(data);
+    });
+  }, []);
+
   return (
     <div className="space-y-6 max-w-7xl">
       <div className="page-header">
@@ -39,33 +70,31 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Today's Sales"
-          value={`₹${todayTotal.toLocaleString()}`}
-          subtitle={`${recentSales.filter(s => s.date.startsWith("2026-02-24")).length} transactions`}
-          icon={IndianRupee}
-          trend={{ value: "12% from yesterday", positive: true }}
-          iconClassName="bg-primary"
-        />
-        <StatCard
-          title="Monthly Revenue"
-          value={`₹${monthTotal.toLocaleString()}`}
-          subtitle="Feb 2026"
-          icon={TrendingUp}
-          trend={{ value: "8% from last month", positive: true }}
-          iconClassName="bg-info"
-        />
-        <StatCard
           title="Total Products"
-          value={products.length.toString()}
-          subtitle={`${categories.length} categories`}
+          value={productCount.toString()}
+          subtitle="In inventory"
           icon={Package}
         />
         <StatCard
           title="Low Stock Alert"
-          value={lowStockProducts.length.toString()}
+          value={lowStockCount.toString()}
           subtitle="Items need restocking"
           icon={AlertTriangle}
           iconClassName="bg-warning"
+        />
+        <StatCard
+          title="Recent Sales"
+          value={recentSales.length.toString()}
+          subtitle="Latest transactions"
+          icon={TrendingUp}
+          iconClassName="bg-info"
+        />
+        <StatCard
+          title="Outstanding Credit"
+          value={`₹${Math.max(0, totalOutstanding).toLocaleString()}`}
+          subtitle="Total udhari pending"
+          icon={CreditCard}
+          iconClassName="bg-destructive"
         />
       </div>
 
@@ -106,16 +135,18 @@ export default function Dashboard() {
         <div className="stat-card">
           <h3 className="text-sm font-semibold mb-4 font-heading">Recent Sales</h3>
           <div className="space-y-3">
-            {recentSales.slice(0, 4).map((sale) => (
+            {recentSales.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No sales yet</p>
+            ) : recentSales.map((sale) => (
               <div key={sale.id} className="flex items-center justify-between py-2 border-b last:border-0">
                 <div>
-                  <p className="text-sm font-medium">{sale.billNumber}</p>
-                  <p className="text-xs text-muted-foreground">{sale.items.length} items • {sale.paymentMethod}</p>
+                  <p className="text-sm font-medium">{sale.bill_number}</p>
+                  <p className="text-xs text-muted-foreground">{sale.sale_items?.length || 0} items • {sale.payment_method}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold">₹{sale.total}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(sale.date).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                    {new Date(sale.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>
               </div>
@@ -136,7 +167,6 @@ export default function Dashboard() {
                 <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
                   <div>
                     <p className="text-sm font-medium">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">{p.category}</p>
                   </div>
                   <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
                     p.stock <= 5 ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"
