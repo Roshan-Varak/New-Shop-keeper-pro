@@ -122,58 +122,46 @@ export default function Products() {
     });
   };
 
-  const ProductForm = ({ onSubmit, title }: { onSubmit: () => void; title: string }) => (
-    <DialogContent className="sm:max-w-md">
-      <DialogHeader>
-        <DialogTitle className="font-heading">{title}</DialogTitle>
-        <DialogDescription>Fill in the product details below.</DialogDescription>
-      </DialogHeader>
-      <div className="grid gap-4 py-4">
+  const renderFormFields = () => (
+    <div className="grid gap-4 py-4">
+      <div className="grid gap-2">
+        <Label>Product Name</Label>
+        <Input value={formData.name} onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))} placeholder="Enter product name" />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
         <div className="grid gap-2">
-          <Label>Product Name</Label>
-          <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Enter product name" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="grid gap-2">
-            <Label>Category</Label>
-            <Select value={formData.category_id} onValueChange={(v) => setFormData({ ...formData, category_id: v })}>
-              <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-              <SelectContent>
-                {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2">
-            <Label>Unit</Label>
-            <Input value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="grid gap-2">
-            <Label>Price (₹)</Label>
-            <Input type="number" value={formData.price} onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })} />
-          </div>
-          <div className="grid gap-2">
-            <Label>Stock</Label>
-            <Input type="number" value={formData.stock} onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })} />
-          </div>
+          <Label>Category</Label>
+          <Select value={formData.category_id} onValueChange={(v) => setFormData(prev => ({ ...prev, category_id: v }))}>
+            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+            <SelectContent>
+              {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
         <div className="grid gap-2">
-          <Label>Supplier</Label>
-          <Input value={formData.supplier} onChange={(e) => setFormData({ ...formData, supplier: e.target.value })} placeholder="Supplier name" />
-        </div>
-        <div className="grid gap-2">
-          <Label>Barcode (optional)</Label>
-          <Input value={formData.barcode} onChange={(e) => setFormData({ ...formData, barcode: e.target.value })} placeholder="Barcode" />
+          <Label>Unit</Label>
+          <Input value={formData.unit} onChange={(e) => setFormData(prev => ({ ...prev, unit: e.target.value }))} />
         </div>
       </div>
-      <DialogFooter>
-        <DialogClose asChild>
-          <Button variant="outline">Cancel</Button>
-        </DialogClose>
-        <Button onClick={onSubmit}>{title}</Button>
-      </DialogFooter>
-    </DialogContent>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label>Price (₹)</Label>
+          <Input type="number" value={formData.price} onChange={(e) => setFormData(prev => ({ ...prev, price: Number(e.target.value) }))} />
+        </div>
+        <div className="grid gap-2">
+          <Label>Stock</Label>
+          <Input type="number" value={formData.stock} onChange={(e) => setFormData(prev => ({ ...prev, stock: Number(e.target.value) }))} />
+        </div>
+      </div>
+      <div className="grid gap-2">
+        <Label>Supplier</Label>
+        <Input value={formData.supplier} onChange={(e) => setFormData(prev => ({ ...prev, supplier: e.target.value }))} placeholder="Supplier name" />
+      </div>
+      <div className="grid gap-2">
+        <Label>Barcode (optional)</Label>
+        <Input value={formData.barcode} onChange={(e) => setFormData(prev => ({ ...prev, barcode: e.target.value }))} placeholder="Barcode" />
+      </div>
+    </div>
   );
 
   return (
@@ -189,7 +177,19 @@ export default function Products() {
               <Plus className="w-4 h-4 mr-2" /> Add Product
             </Button>
           </DialogTrigger>
-          <ProductForm onSubmit={handleAdd} title="Add Product" />
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-heading">Add Product</DialogTitle>
+              <DialogDescription>Fill in the product details below.</DialogDescription>
+            </DialogHeader>
+            {renderFormFields()}
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DialogClose>
+              <Button onClick={handleAdd}>Add Product</Button>
+            </DialogFooter>
+          </DialogContent>
         </Dialog>
       </div>
 
@@ -259,7 +259,19 @@ export default function Products() {
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
                       </DialogTrigger>
-                      <ProductForm onSubmit={handleEdit} title="Edit Product" />
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="font-heading">Edit Product</DialogTitle>
+                          <DialogDescription>Fill in the product details below.</DialogDescription>
+                        </DialogHeader>
+                        {renderFormFields()}
+                        <DialogFooter>
+                          <DialogClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                          </DialogClose>
+                          <Button onClick={handleEdit}>Edit Product</Button>
+                        </DialogFooter>
+                      </DialogContent>
                     </Dialog>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(product.id)}>
                       <Trash2 className="w-3.5 h-3.5" />
