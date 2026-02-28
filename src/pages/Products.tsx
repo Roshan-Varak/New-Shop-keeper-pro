@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Plus, Pencil, Trash2, Filter } from "lucide-react";
-import { products as initialProducts, categories, Product } from "@/data/mockData";
+import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,59 +8,125 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+
+interface Product {
+  id: string;
+  name: string;
+  category_id: string | null;
+  price: number;
+  stock: number;
+  supplier: string | null;
+  barcode: string | null;
+  unit: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+}
 
 export default function Products() {
-  const [productList, setProductList] = useState<Product[]>(initialProducts);
+  const [productList, setProductList] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const emptyProduct: Omit<Product, "id"> = {
-    name: "", category: "Groceries", price: 0, stock: 0, supplier: "", unit: "pack",
+  const emptyForm = { name: "", category_id: "", price: 0, stock: 0, supplier: "", unit: "pack", barcode: "" };
+  const [formData, setFormData] = useState(emptyForm);
+
+  const fetchData = async () => {
+    setLoading(true);
+    const [{ data: prods }, { data: cats }] = await Promise.all([
+      supabase.from("products").select("*").order("name"),
+      supabase.from("categories").select("*").order("name"),
+    ]);
+    if (prods) setProductList(prods);
+    if (cats) setCategories(cats);
+    setLoading(false);
   };
-  const [formData, setFormData] = useState<Omit<Product, "id">>(emptyProduct);
+
+  useEffect(() => { fetchData(); }, []);
+
+  const getCategoryName = (id: string | null) => categories.find(c => c.id === id)?.name || "—";
 
   const filtered = productList.filter((p) => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.supplier.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = filterCategory === "all" || p.category === filterCategory;
+      (p.supplier || "").toLowerCase().includes(search.toLowerCase());
+    const matchCategory = filterCategory === "all" || p.category_id === filterCategory;
     return matchSearch && matchCategory;
   });
 
-  const handleAdd = () => {
-    const newProduct: Product = { ...formData, id: Date.now().toString() };
-    setProductList([...productList, newProduct]);
-    setFormData(emptyProduct);
+  const handleAdd = async () => {
+    if (!formData.name.trim()) { toast.error("Product name is required"); return; }
+    const { error } = await supabase.from("products").insert({
+      name: formData.name.trim(),
+      category_id: formData.category_id || null,
+      price: formData.price,
+      stock: formData.stock,
+      supplier: formData.supplier.trim() || null,
+      unit: formData.unit.trim() || "pack",
+      barcode: formData.barcode.trim() || null,
+    });
+    if (error) { console.error("Insert product error:", error); toast.error(error.message); return; }
+    toast.success("Product added!");
+    setFormData(emptyForm);
     setIsAddOpen(false);
+    fetchData();
   };
 
-  const handleEdit = () => {
+  const handleEdit = async () => {
     if (!editingProduct) return;
-    setProductList(productList.map((p) => (p.id === editingProduct.id ? { ...editingProduct, ...formData } : p)));
+    const { error } = await supabase.from("products").update({
+      name: formData.name.trim(),
+      category_id: formData.category_id || null,
+      price: formData.price,
+      stock: formData.stock,
+      supplier: formData.supplier.trim() || null,
+      unit: formData.unit.trim() || "pack",
+      barcode: formData.barcode.trim() || null,
+    }).eq("id", editingProduct.id);
+    if (error) { console.error("Update product error:", error); toast.error(error.message); return; }
+    toast.success("Product updated!");
     setEditingProduct(null);
-    setFormData(emptyProduct);
+    setFormData(emptyForm);
+    fetchData();
   };
 
-  const handleDelete = (id: string) => {
-    setProductList(productList.filter((p) => p.id !== id));
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (error) { console.error("Delete product error:", error); toast.error(error.message); return; }
+    toast.success("Product deleted!");
+    fetchData();
   };
 
   const openEdit = (product: Product) => {
     setEditingProduct(product);
-    setFormData({ name: product.name, category: product.category, price: product.price, stock: product.stock, supplier: product.supplier, unit: product.unit });
+    setFormData({
+      name: product.name,
+      category_id: product.category_id || "",
+      price: product.price,
+      stock: product.stock,
+      supplier: product.supplier || "",
+      unit: product.unit,
+      barcode: product.barcode || "",
+    });
   };
 
   const ProductForm = ({ onSubmit, title }: { onSubmit: () => void; title: string }) => (
     <DialogContent className="sm:max-w-md">
       <DialogHeader>
         <DialogTitle className="font-heading">{title}</DialogTitle>
+        <DialogDescription>Fill in the product details below.</DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 py-4">
         <div className="grid gap-2">
@@ -70,10 +136,10 @@ export default function Products() {
         <div className="grid grid-cols-2 gap-4">
           <div className="grid gap-2">
             <Label>Category</Label>
-            <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select value={formData.category_id} onValueChange={(v) => setFormData({ ...formData, category_id: v })}>
+              <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
               <SelectContent>
-                {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -96,6 +162,10 @@ export default function Products() {
           <Label>Supplier</Label>
           <Input value={formData.supplier} onChange={(e) => setFormData({ ...formData, supplier: e.target.value })} placeholder="Supplier name" />
         </div>
+        <div className="grid gap-2">
+          <Label>Barcode (optional)</Label>
+          <Input value={formData.barcode} onChange={(e) => setFormData({ ...formData, barcode: e.target.value })} placeholder="Barcode" />
+        </div>
       </div>
       <DialogFooter>
         <DialogClose asChild>
@@ -115,7 +185,7 @@ export default function Products() {
         </div>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setFormData(emptyProduct)}>
+            <Button onClick={() => setFormData(emptyForm)}>
               <Plus className="w-4 h-4 mr-2" /> Add Product
             </Button>
           </DialogTrigger>
@@ -126,12 +196,7 @@ export default function Products() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search products or suppliers..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+          <Input placeholder="Search products or suppliers..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
           <SelectTrigger className="w-full sm:w-48">
@@ -140,7 +205,7 @@ export default function Products() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -158,7 +223,11 @@ export default function Products() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((product) => (
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading...</TableCell>
+              </TableRow>
+            ) : filtered.map((product) => (
               <TableRow key={product.id} className="animate-fade-in">
                 <TableCell>
                   <div>
@@ -167,7 +236,7 @@ export default function Products() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary" className="text-xs">{product.category}</Badge>
+                  <Badge variant="secondary" className="text-xs">{getCategoryName(product.category_id)}</Badge>
                 </TableCell>
                 <TableCell className="text-right font-medium">₹{product.price}</TableCell>
                 <TableCell className="text-right">
@@ -180,7 +249,7 @@ export default function Products() {
                   </span>
                 </TableCell>
                 <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                  {product.supplier}
+                  {product.supplier || "—"}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
@@ -199,7 +268,7 @@ export default function Products() {
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && (
+            {!loading && filtered.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   No products found
