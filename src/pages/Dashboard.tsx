@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { IndianRupee, ShoppingBag, Package, AlertTriangle, TrendingUp, CreditCard } from "lucide-react";
+import { Package, AlertTriangle, TrendingUp, CreditCard, Loader2 } from "lucide-react";
 import { StatCard } from "@/components/StatCard";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -12,40 +12,41 @@ const COLORS = [
   "hsl(142, 71%, 45%)", "hsl(0, 72%, 51%)", "hsl(280, 60%, 50%)",
 ];
 
-const salesByDay = [
-  { day: "Mon", sales: 2400 }, { day: "Tue", sales: 1800 },
-  { day: "Wed", sales: 3200 }, { day: "Thu", sales: 2800 },
-  { day: "Fri", sales: 3600 }, { day: "Sat", sales: 4200 },
-  { day: "Sun", sales: 2100 },
-];
-
 export default function Dashboard() {
+  const [loading, setLoading] = useState(true);
   const [totalOutstanding, setTotalOutstanding] = useState(0);
   const [productCount, setProductCount] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [todayRevenue, setTodayRevenue] = useState(0);
   const [categoryData, setCategoryData] = useState<{ name: string; value: number }[]>([]);
   const [recentSales, setRecentSales] = useState<any[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
+  const [weeklySales, setWeeklySales] = useState<{ day: string; sales: number }[]>([]);
 
   useEffect(() => {
-    // Fetch outstanding credit
-    supabase.from("credit_transactions").select("*").then(({ data }) => {
-      if (data) {
-        const credit = data.filter(t => t.type === "credit").reduce((a, t) => a + Number(t.amount), 0);
-        const paid = data.filter(t => t.type === "payment").reduce((a, t) => a + Number(t.amount), 0);
-        setTotalOutstanding(credit - paid);
-      }
-    });
+    const fetchAll = async () => {
+      setLoading(true);
 
-    // Fetch products for stats
-    supabase.from("products").select("id, name, stock, category_id").then(({ data }) => {
-      if (data) {
-        setProductCount(data.length);
-        setLowStockCount(data.filter(p => p.stock <= 10).length);
-        setLowStockProducts(data.filter(p => p.stock <= 10));
-        // Category grouping by category_id (simplified)
-        const grouped = data.reduce((acc, p) => {
-          const key = p.category_id || "Uncategorized";
+      // Fetch credit outstanding
+      const { data: creditData } = await supabase.from("credit_transactions").select("amount, type");
+      if (creditData) {
+        const credit = creditData.filter(t => t.type === "credit").reduce((a, t) => a + Number(t.amount), 0);
+        const paid = creditData.filter(t => t.type === "payment").reduce((a, t) => a + Number(t.amount), 0);
+        setTotalOutstanding(Math.max(0, credit - paid));
+      }
+
+      // Fetch products for stats
+      const [{ data: prods }, { data: cats }] = await Promise.all([
+        supabase.from("products").select("id, name, stock, category_id"),
+        supabase.from("categories").select("id, name"),
+      ]);
+      if (prods) {
+        setProductCount(prods.length);
+        setLowStockCount(prods.filter(p => p.stock <= 10).length);
+        setLowStockProducts(prods.filter(p => p.stock <= 10));
+        const catMap = new Map((cats || []).map(c => [c.id, c.name]));
+        const grouped = prods.reduce((acc, p) => {
+          const key = catMap.get(p.category_id || "") || "Uncategorized";
           const found = acc.find(c => c.name === key);
           if (found) found.value += p.stock;
           else acc.push({ name: key, value: p.stock });
@@ -53,13 +54,66 @@ export default function Dashboard() {
         }, [] as { name: string; value: number }[]);
         setCategoryData(grouped);
       }
-    });
 
-    // Fetch recent sales
-    supabase.from("sales").select("*, sale_items(*)").order("created_at", { ascending: false }).limit(4).then(({ data }) => {
-      if (data) setRecentSales(data);
-    });
+      // Fetch recent sales
+      const { data: salesData } = await supabase
+        .from("sales")
+        .select("*, sale_items(*)")
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (salesData) setRecentSales(salesData);
+
+      // Today's revenue
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const { data: todaySales } = await supabase
+        .from("sales")
+        .select("total")
+        .gte("created_at", todayStart.toISOString());
+      if (todaySales) {
+        setTodayRevenue(todaySales.reduce((a, s) => a + Number(s.total), 0));
+      }
+
+      // Weekly sales (last 7 days)
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const weekData: { day: string; sales: number }[] = [];
+      const now = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        weekData.push({ day: dayNames[d.getDay()], sales: 0 });
+      }
+      const weekStart = new Date(now);
+      weekStart.setDate(weekStart.getDate() - 6);
+      weekStart.setHours(0, 0, 0, 0);
+      const { data: weekSalesData } = await supabase
+        .from("sales")
+        .select("total, created_at")
+        .gte("created_at", weekStart.toISOString());
+      if (weekSalesData) {
+        weekSalesData.forEach((s) => {
+          const saleDate = new Date(s.created_at);
+          const diffDays = Math.floor((saleDate.getTime() - weekStart.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays >= 0 && diffDays < 7) {
+            weekData[diffDays].sales += Number(s.total);
+          }
+        });
+      }
+      setWeeklySales(weekData);
+
+      setLoading(false);
+    };
+
+    fetchAll();
   }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -69,6 +123,13 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Today's Revenue"
+          value={`₹${todayRevenue.toLocaleString()}`}
+          subtitle="Today's total sales"
+          icon={TrendingUp}
+          iconClassName="bg-primary"
+        />
         <StatCard
           title="Total Products"
           value={productCount.toString()}
@@ -83,15 +144,8 @@ export default function Dashboard() {
           iconClassName="bg-warning"
         />
         <StatCard
-          title="Recent Sales"
-          value={recentSales.length.toString()}
-          subtitle="Latest transactions"
-          icon={TrendingUp}
-          iconClassName="bg-info"
-        />
-        <StatCard
           title="Outstanding Credit"
-          value={`₹${Math.max(0, totalOutstanding).toLocaleString()}`}
+          value={`₹${totalOutstanding.toLocaleString()}`}
           subtitle="Total udhari pending"
           icon={CreditCard}
           iconClassName="bg-destructive"
@@ -102,7 +156,7 @@ export default function Dashboard() {
         <div className="lg:col-span-2 stat-card">
           <h3 className="text-sm font-semibold mb-4 font-heading">Weekly Sales Trend</h3>
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={salesByDay}>
+            <BarChart data={weeklySales}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(150, 12%, 89%)" />
               <XAxis dataKey="day" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />

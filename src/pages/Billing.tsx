@@ -42,16 +42,17 @@ export default function Billing() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
 
+  const fetchProducts = async () => {
+    const { data } = await supabase.from("products").select("id, name, price, stock, unit, category_id");
+    if (data) setProducts(data);
+  };
+
   useEffect(() => {
-    const fetchProducts = async () => {
-      const { data } = await supabase.from("products").select("id, name, price, stock, unit, category_id");
-      if (data) setProducts(data);
-    };
+    fetchProducts();
     const fetchCustomers = async () => {
       const { data } = await supabase.from("customers").select("id, name, mobile");
       if (data) setCustomers(data);
     };
-    fetchProducts();
     fetchCustomers();
   }, []);
 
@@ -62,6 +63,10 @@ export default function Billing() {
   const addToCart = (productId: string) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
+    if (product.stock <= 0) {
+      toast.error("Out of stock!");
+      return;
+    }
     const existing = cart.find((c) => c.productId === productId);
     if (existing) {
       if (existing.quantity >= product.stock) {
@@ -113,47 +118,29 @@ export default function Billing() {
     setSubmitting(true);
     const billNumber = `PGS-${Date.now().toString().slice(-6)}`;
 
-    // Insert sale
-    const { data: sale, error: saleErr } = await supabase.from("sales").insert({
-      bill_number: billNumber,
-      subtotal,
-      discount,
-      total,
-      payment_method: paymentMethod,
-      customer_id: paymentMethod === "Credit" ? selectedCustomerId : null,
-    }).select("id").single();
-
-    if (saleErr || !sale) {
-      toast.error(saleErr?.message || "Failed to create sale");
-      setSubmitting(false);
-      return;
-    }
-
-    // Insert sale items
     const items = cart.map((c) => ({
-      sale_id: sale.id,
       product_id: c.productId,
       name: c.name,
       quantity: c.quantity,
       price: c.price,
       total: c.total,
     }));
-    const { error: itemErr } = await supabase.from("sale_items").insert(items);
-    if (itemErr) {
-      toast.error(itemErr.message);
+
+    const { data, error } = await supabase.rpc("create_sale", {
+      p_bill_number: billNumber,
+      p_subtotal: subtotal,
+      p_discount: discount,
+      p_total: total,
+      p_payment_method: paymentMethod,
+      p_customer_id: paymentMethod === "Credit" ? selectedCustomerId : null,
+      p_items: items,
+    });
+
+    if (error) {
+      console.error("Billing error:", error);
+      toast.error(error.message || "Failed to create sale");
       setSubmitting(false);
       return;
-    }
-
-    // If credit, add credit transaction
-    if (paymentMethod === "Credit" && selectedCustomerId) {
-      await supabase.from("credit_transactions").insert({
-        customer_id: selectedCustomerId,
-        sale_id: sale.id,
-        amount: total,
-        type: "credit",
-        note: `Bill ${billNumber}`,
-      });
     }
 
     toast.success(`Bill ${billNumber} generated! Total: ₹${total}`);
@@ -165,8 +152,7 @@ export default function Billing() {
     setSubmitting(false);
 
     // Refresh products to get updated stock
-    const { data: refreshed } = await supabase.from("products").select("id, name, price, stock, unit, category_id");
-    if (refreshed) setProducts(refreshed);
+    fetchProducts();
   };
 
   return (
@@ -194,13 +180,14 @@ export default function Billing() {
               <button
                 key={p.id}
                 onClick={() => addToCart(p.id)}
-                className="stat-card text-left hover:border-primary/50 cursor-pointer transition-all active:scale-[0.98]"
+                disabled={p.stock <= 0}
+                className="stat-card text-left hover:border-primary/50 cursor-pointer transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <p className="text-sm font-medium truncate">{p.name}</p>
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-sm font-bold text-primary">₹{p.price}</span>
                   <Badge variant={p.stock <= 5 ? "destructive" : "secondary"} className="text-[10px]">
-                    {p.stock} left
+                    {p.stock <= 0 ? "Out" : `${p.stock} left`}
                   </Badge>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">{p.unit}</p>
