@@ -11,7 +11,9 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
+import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
   SidebarContent,
@@ -25,18 +27,21 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 
-const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Products", url: "/products", icon: Package },
-  { title: "New Sale", url: "/billing", icon: ShoppingCart },
-  { title: "Sales History", url: "/sales", icon: Receipt },
-  { title: "Reports", url: "/reports", icon: BarChart3 },
-  { title: "Credit / Udhari", url: "/credit", icon: IndianRupee },
-  { title: "Users", url: "/users", icon: Users },
+const allNavItems = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard, adminOnly: false },
+  { title: "Products", url: "/products", icon: Package, adminOnly: false },
+  { title: "New Sale", url: "/billing", icon: ShoppingCart, adminOnly: false },
+  { title: "Sales History", url: "/sales", icon: Receipt, adminOnly: false },
+  { title: "Reports", url: "/reports", icon: BarChart3, adminOnly: true },
+  { title: "Credit / Udhari", url: "/credit", icon: IndianRupee, adminOnly: true },
+  { title: "Users", url: "/users", icon: Users, adminOnly: true },
 ];
 
 export function AppSidebar() {
   const { signOut, user } = useAuth();
+  const { isAdmin, role } = useRole();
+
+  const navItems = allNavItems.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <Sidebar>
@@ -82,8 +87,15 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border space-y-2">
-        <div className="text-xs text-sidebar-foreground/60 text-center truncate">
-          {user?.email}
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-xs text-sidebar-foreground/60 truncate">
+            {user?.email}
+          </span>
+          {role && (
+            <Badge variant={isAdmin ? "default" : "secondary"} className="text-[10px]">
+              {role}
+            </Badge>
+          )}
         </div>
         <Button
           variant="ghost"
