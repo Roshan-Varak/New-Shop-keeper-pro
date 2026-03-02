@@ -6,8 +6,9 @@ import {
   BarChart3,
   Store,
   LogOut,
-  Users,
   IndianRupee,
+  Truck,
+  ClipboardList,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,7 +35,8 @@ const allNavItems = [
   { title: "Sales History", url: "/sales", icon: Receipt, adminOnly: false },
   { title: "Reports", url: "/reports", icon: BarChart3, adminOnly: true },
   { title: "Credit / Udhari", url: "/credit", icon: IndianRupee, adminOnly: true },
-  { title: "Users", url: "/users", icon: Users, adminOnly: true },
+  { title: "Suppliers", url: "/suppliers", icon: Truck, adminOnly: true },
+  { title: "Purchases", url: "/purchases", icon: ClipboardList, adminOnly: true },
 ];
 
 export function AppSidebar() {
