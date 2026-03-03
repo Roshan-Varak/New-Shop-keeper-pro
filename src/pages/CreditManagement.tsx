@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, IndianRupee, AlertTriangle, Clock, Search, Phone, MapPin } from "lucide-react";
+import { Plus, IndianRupee, AlertTriangle, Clock, Search, Phone, MapPin, Pencil, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -54,6 +64,17 @@ export default function CreditManagement() {
   const [newName, setNewName] = useState("");
   const [newMobile, setNewMobile] = useState("");
   const [newAddress, setNewAddress] = useState("");
+
+  // Edit customer dialog
+  const [editOpen, setEditOpen] = useState(false);
+  const [editCustomer, setEditCustomer] = useState<Customer | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editMobile, setEditMobile] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+
+  // Delete customer dialog
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteCustomer, setDeleteCustomer] = useState<CreditSummary | null>(null);
 
   // Receive payment dialog
   const [payOpen, setPayOpen] = useState(false);
@@ -126,6 +147,48 @@ export default function CreditManagement() {
     setNewName(""); setNewMobile(""); setNewAddress("");
     setAddOpen(false);
     fetchData();
+  };
+
+  const handleEditCustomer = async () => {
+    if (!editCustomer) return;
+    if (!editName.trim() || !editMobile.trim()) {
+      toast.error("Name and mobile are required");
+      return;
+    }
+    if (!/^\d{10}$/.test(editMobile.trim())) {
+      toast.error("Enter a valid 10-digit mobile number");
+      return;
+    }
+    const { error } = await supabase.from("customers").update({
+      name: editName.trim(),
+      mobile: editMobile.trim(),
+      address: editAddress.trim() || null,
+    }).eq("id", editCustomer.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Customer updated!");
+    setEditOpen(false);
+    setEditCustomer(null);
+    fetchData();
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (!deleteCustomer) return;
+    const { error } = await supabase.from("customers").delete().eq("id", deleteCustomer.customer_id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`${deleteCustomer.customer_name} deleted`);
+    setDeleteOpen(false);
+    setDeleteCustomer(null);
+    fetchData();
+  };
+
+  const openEditDialog = (s: CreditSummary) => {
+    const cust = customers.find(c => c.id === s.customer_id);
+    if (!cust) return;
+    setEditCustomer(cust);
+    setEditName(cust.name);
+    setEditMobile(cust.mobile);
+    setEditAddress(cust.address || "");
+    setEditOpen(true);
   };
 
   const handleReceivePayment = async () => {
@@ -226,7 +289,7 @@ export default function CreditManagement() {
               <TableHead className="text-right">Balance</TableHead>
               <TableHead>Last Purchase</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead></TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -270,11 +333,19 @@ export default function CreditManagement() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {s.balance > 0 && (
-                      <Button size="sm" variant="outline" onClick={() => { setPayCustomer(s); setPayOpen(true); }}>
-                        Receive Payment
+                    <div className="flex items-center gap-1">
+                      {s.balance > 0 && (
+                        <Button size="sm" variant="outline" onClick={() => { setPayCustomer(s); setPayOpen(true); }}>
+                          Receive
+                        </Button>
+                      )}
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditDialog(s)}>
+                        <Pencil className="w-3.5 h-3.5" />
                       </Button>
-                    )}
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => { setDeleteCustomer(s); setDeleteOpen(true); }}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -282,6 +353,43 @@ export default function CreditManagement() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Edit Customer Dialog */}
+      <Dialog open={editOpen} onOpenChange={(o) => { setEditOpen(o); if (!o) setEditCustomer(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Customer</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-2">
+            <Input placeholder="Customer Name *" value={editName} onChange={(e) => setEditName(e.target.value)} />
+            <Input placeholder="Mobile Number (10 digits) *" value={editMobile} onChange={(e) => setEditMobile(e.target.value)} maxLength={10} />
+            <Input placeholder="Address (optional)" value={editAddress} onChange={(e) => setEditAddress(e.target.value)} />
+            <Button className="w-full" onClick={handleEditCustomer}>Save Changes</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Customer Confirmation */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Customer</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{deleteCustomer?.customer_name}</strong>?
+              {deleteCustomer && deleteCustomer.balance > 0 && (
+                <span className="block mt-2 text-destructive font-medium">
+                  ⚠️ This customer has ₹{deleteCustomer.balance.toLocaleString()} outstanding balance. All credit records will be permanently deleted.
+                </span>
+              )}
+              <span className="block mt-1">Past sales records will be preserved.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCustomer} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Receive Payment Dialog */}
       <Dialog open={payOpen} onOpenChange={(o) => { setPayOpen(o); if (!o) setPayCustomer(null); }}>

@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { AdminRoute } from "@/components/AdminRoute";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
@@ -39,10 +38,10 @@ const App = () => (
                       <Route path="/products" element={<Products />} />
                       <Route path="/billing" element={<Billing />} />
                       <Route path="/sales" element={<SalesHistory />} />
-                      <Route path="/reports" element={<AdminRoute><Reports /></AdminRoute>} />
-                      <Route path="/credit" element={<AdminRoute><CreditManagement /></AdminRoute>} />
-                      <Route path="/suppliers" element={<AdminRoute><Suppliers /></AdminRoute>} />
-                      <Route path="/purchases" element={<AdminRoute><Purchases /></AdminRoute>} />
+                      <Route path="/reports" element={<Reports />} />
+                      <Route path="/credit" element={<CreditManagement />} />
+                      <Route path="/suppliers" element={<Suppliers />} />
+                      <Route path="/purchases" element={<Purchases />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </DashboardLayout>
