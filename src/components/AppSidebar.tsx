@@ -9,6 +9,7 @@ import {
   IndianRupee,
   Truck,
   ClipboardList,
+  Settings,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,10 +36,11 @@ const navItems = [
   { title: "Credit / Udhari", url: "/credit", icon: IndianRupee },
   { title: "Suppliers", url: "/suppliers", icon: Truck },
   { title: "Purchases", url: "/purchases", icon: ClipboardList },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
-  const { signOut, user } = useAuth();
+  const { signOut } = useAuth();
 
   return (
     <Sidebar>
@@ -83,10 +85,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-sidebar-border space-y-2">
-        <span className="text-xs text-sidebar-foreground/60 truncate text-center block">
-          {user?.email}
-        </span>
+      <SidebarFooter className="p-4 border-t border-sidebar-border">
         <Button
           variant="ghost"
           size="sm"

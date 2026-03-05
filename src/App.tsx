@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import CreditManagement from "./pages/CreditManagement";
 import Suppliers from "./pages/Suppliers";
 import Purchases from "./pages/Purchases";
+import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,7 @@ const App = () => (
                       <Route path="/credit" element={<CreditManagement />} />
                       <Route path="/suppliers" element={<Suppliers />} />
                       <Route path="/purchases" element={<Purchases />} />
+                      <Route path="/settings" element={<Settings />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </DashboardLayout>

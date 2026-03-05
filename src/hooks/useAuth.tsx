@@ -1,53 +1,56 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 interface AuthContextType {
-  session: Session | null;
-  user: User | null;
+  isAuthenticated: boolean;
   loading: boolean;
-  signOut: () => Promise<void>;
+  login: (password: string) => Promise<boolean>;
+  signOut: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  session: null,
-  user: null,
+  isAuthenticated: false,
   loading: true,
-  signOut: async () => {},
+  login: async () => false,
+  signOut: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    const stored = sessionStorage.getItem("shop_authenticated");
+    setIsAuthenticated(stored === "true");
+    setLoading(false);
   }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+  const login = async (password: string): Promise<boolean> => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data, error } = await supabase
+      .from("shop_settings")
+      .select("value")
+      .eq("key", "shop_password")
+      .single();
+
+    if (error || !data) return false;
+
+    if (data.value === password) {
+      sessionStorage.setItem("shop_authenticated", "true");
+      setIsAuthenticated(true);
+      return true;
+    }
+    return false;
+  };
+
+  const signOut = () => {
+    sessionStorage.removeItem("shop_authenticated");
+    setIsAuthenticated(false);
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, signOut }}>
+    <AuthContext.Provider value={{ isAuthenticated, loading, login, signOut }}>
       {children}
     </AuthContext.Provider>
   );
