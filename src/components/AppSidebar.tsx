@@ -10,6 +10,7 @@ import {
   Truck,
   ClipboardList,
   Settings,
+  BookOpen,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -36,6 +37,7 @@ const navItems = [
   { title: "Credit / Udhari", url: "/credit", icon: IndianRupee },
   { title: "Suppliers", url: "/suppliers", icon: Truck },
   { title: "Purchases", url: "/purchases", icon: ClipboardList },
+  { title: "Accounting", url: "/accounting", icon: BookOpen },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

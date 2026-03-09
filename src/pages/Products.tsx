@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 
 interface Product {
   id: string;
@@ -210,7 +211,8 @@ export default function Products() {
           <h1 className="page-title">Products</h1>
           <p className="page-subtitle">{productList.length} products in inventory</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {isAdmin && <ExcelImportDialog onImportComplete={fetchData} />}
           {isAdmin && (
             <Dialog open={isCatOpen} onOpenChange={setIsCatOpen}>
               <DialogTrigger asChild>
