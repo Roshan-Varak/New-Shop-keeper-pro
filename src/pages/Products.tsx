@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 
 interface Product {
   id: string;
