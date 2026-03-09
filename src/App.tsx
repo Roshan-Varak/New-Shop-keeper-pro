@@ -17,6 +17,7 @@ import CreditManagement from "./pages/CreditManagement";
 import Suppliers from "./pages/Suppliers";
 import Purchases from "./pages/Purchases";
 import Settings from "./pages/Settings";
+import Accounting from "./pages/Accounting";
 
 const queryClient = new QueryClient();
 
