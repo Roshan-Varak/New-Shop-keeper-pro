@@ -45,6 +45,7 @@ const App = () => (
                       <Route path="/suppliers" element={<Suppliers />} />
                       <Route path="/purchases" element={<Purchases />} />
                       <Route path="/settings" element={<Settings />} />
+                      <Route path="/accounting" element={<Accounting />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </DashboardLayout>
