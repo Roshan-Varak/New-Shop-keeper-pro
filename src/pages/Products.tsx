@@ -29,6 +29,7 @@ interface Product {
   price: number;
   stock: number;
   supplier: string | null;
+  company: string | null;
   barcode: string | null;
   unit: string;
 }
@@ -54,7 +55,7 @@ export default function Products() {
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState("");
 
-  const emptyForm = { name: "", category_id: "", price: 0, stock: 0, supplier: "", unit: "pack", barcode: "" };
+  const emptyForm = { name: "", category_id: "", price: 0, stock: 0, supplier: "", company: "", unit: "pack", barcode: "" };
   const [formData, setFormData] = useState(emptyForm);
 
   const fetchData = async () => {
@@ -74,7 +75,8 @@ export default function Products() {
 
   const filtered = productList.filter((p) => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.supplier || "").toLowerCase().includes(search.toLowerCase());
+      (p.supplier || "").toLowerCase().includes(search.toLowerCase()) ||
+      (p.company || "").toLowerCase().includes(search.toLowerCase());
     const matchCategory = filterCategory === "all" || p.category_id === filterCategory;
     return matchSearch && matchCategory;
   });
@@ -86,8 +88,7 @@ export default function Products() {
       category_id: formData.category_id || null,
       price: formData.price,
       stock: formData.stock,
-      supplier: formData.supplier.trim() || null,
-      unit: formData.unit.trim() || "pack",
+      supplier: formData.supplier.trim() || null,      company: formData.company.trim() || null,      unit: formData.unit.trim() || "pack",
       barcode: formData.barcode.trim() || null,
     });
     if (error) { console.error("Insert product error:", error); toast.error(error.message); return; }
@@ -104,8 +105,7 @@ export default function Products() {
       category_id: formData.category_id || null,
       price: formData.price,
       stock: formData.stock,
-      supplier: formData.supplier.trim() || null,
-      unit: formData.unit.trim() || "pack",
+      supplier: formData.supplier.trim() || null,      company: formData.company.trim() || null,      unit: formData.unit.trim() || "pack",
       barcode: formData.barcode.trim() || null,
     }).eq("id", editingProduct.id);
     if (error) { console.error("Update product error:", error); toast.error(error.message); return; }
@@ -130,6 +130,7 @@ export default function Products() {
       price: product.price,
       stock: product.stock,
       supplier: product.supplier || "",
+      company: product.company || "",
       unit: product.unit,
       barcode: product.barcode || "",
     });
@@ -193,9 +194,15 @@ export default function Products() {
           <Input type="number" value={formData.stock} onChange={(e) => setFormData(prev => ({ ...prev, stock: Number(e.target.value) }))} />
         </div>
       </div>
-      <div className="grid gap-2">
-        <Label>Supplier</Label>
-        <Input value={formData.supplier} onChange={(e) => setFormData(prev => ({ ...prev, supplier: e.target.value }))} placeholder="Supplier name" />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label>Supplier</Label>
+          <Input value={formData.supplier} onChange={(e) => setFormData(prev => ({ ...prev, supplier: e.target.value }))} placeholder="Supplier name" />
+        </div>
+        <div className="grid gap-2">
+          <Label>Company</Label>
+          <Input value={formData.company} onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))} placeholder="Company (optional)" />
+        </div>
       </div>
       <div className="grid gap-2">
         <Label>Barcode (optional)</Label>
@@ -329,8 +336,7 @@ export default function Products() {
           <TableHeader>
             <TableRow>
               <TableHead>Product</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead className="text-right">Price</TableHead>
+              <TableHead>Category</TableHead>              <TableHead>Company</TableHead>              <TableHead className="text-right">Price</TableHead>
               <TableHead className="text-right">Stock</TableHead>
               <TableHead className="hidden md:table-cell">Supplier</TableHead>
               {isAdmin && <TableHead className="text-right">Actions</TableHead>}
@@ -339,7 +345,7 @@ export default function Products() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading...</TableCell>
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading...</TableCell>
               </TableRow>
             ) : filtered.map((product) => (
               <TableRow key={product.id} className="animate-fade-in">
@@ -352,6 +358,7 @@ export default function Products() {
                 <TableCell>
                   <Badge variant="secondary" className="text-xs">{getCategoryName(product.category_id)}</Badge>
                 </TableCell>
+                <TableCell className="text-sm text-muted-foreground">{product.company || "—"}</TableCell>
                 <TableCell className="text-right font-medium">₹{product.price}</TableCell>
                 <TableCell className="text-right">
                   <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
@@ -412,7 +419,7 @@ export default function Products() {
             ))}
             {!loading && filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   No products found
                 </TableCell>
               </TableRow>
